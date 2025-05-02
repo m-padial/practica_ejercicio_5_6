@@ -36,7 +36,6 @@ resource "aws_apprunner_service" "dash_app" {
   }
 }
 
-
 # --- IAM Role para App Runner (ECR + DynamoDB)
 resource "aws_iam_role" "apprunner_ecr_access" {
   name = "AppRunnerDashAccessRole"
@@ -46,7 +45,10 @@ resource "aws_iam_role" "apprunner_ecr_access" {
     Statement = [{
       Effect = "Allow",
       Principal = {
-        Service = "build.apprunner.amazonaws.com"  # ✅ CORREGIDO
+        Service = [
+          "build.apprunner.amazonaws.com",
+          "tasks.apprunner.amazonaws.com"
+        ]
       },
       Action = "sts:AssumeRole"
     }]
