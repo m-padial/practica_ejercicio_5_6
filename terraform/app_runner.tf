@@ -28,6 +28,7 @@ resource "aws_apprunner_service" "dash_app" {
   }
 }
 
+# --- IAM Role para App Runner con acceso a ECR y DynamoDB
 resource "aws_iam_role" "apprunner_ecr_access" {
   name = "AppRunnerDashAccessRole"
 
@@ -43,13 +44,22 @@ resource "aws_iam_role" "apprunner_ecr_access" {
   })
 }
 
-resource "aws_iam_role_policy" "apprunner_ecr_policy" {
-  name = "AppRunnerECRPolicy"
+# --- Permisos combinados: ECR + DynamoDB
+resource "aws_iam_role_policy" "apprunner_dash_policy" {
+  name = "AppRunnerDashPolicy"
   role = aws_iam_role.apprunner_ecr_access.id
 
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "dynamodb:Scan",
+          "dynamodb:GetItem"
+        ],
+        Resource = aws_dynamodb_table.scraping_data.arn
+      },
       {
         Effect = "Allow",
         Action = [
