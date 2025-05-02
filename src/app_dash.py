@@ -166,6 +166,6 @@ def update_graph(vencimiento_seleccionado):
 
     return figure, tabla
 
-# --- 5. Run App
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run_server(host='0.0.0.0', port=8050, debug=False)

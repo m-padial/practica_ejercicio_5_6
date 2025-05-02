@@ -46,7 +46,7 @@ resource "aws_iam_role" "apprunner_ecr_access" {
     Statement = [{
       Effect = "Allow",
       Principal = {
-        Service = "tasks.apprunner.amazonaws.com"  # ✅ CORREGIDO
+        Service = "build.apprunner.amazonaws.com"  # ✅ CORREGIDO
       },
       Action = "sts:AssumeRole"
     }]
