@@ -1,4 +1,4 @@
-name: Deploy Lambdas with Docker
+name: Deploy Lambdas and Dash App
 
 on:
   push:
@@ -15,66 +15,49 @@ env:
   DOCKERFILE_DASH: Dockerfiles/Dockerfile_apprunner
 
 jobs:
-  deploy-lambdas:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+      - uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.5.7
 
-      - name: Terraform Init
+      - run: terraform init
         working-directory: terraform
-        run: terraform init
 
-      - name: Terraform Apply (ECR only)
-        working-directory: terraform
-        run: |
+      - run: |
           terraform apply -auto-approve \
             -target=aws_ecr_repository.lambda_repository \
             -var="ecr_repo_name=${{ env.ECR_REPOSITORY }}"
+        working-directory: terraform
 
-      - name: Log in to ECR
-        id: login-ecr
+      - id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build and push scraper Lambda Docker image
-        run: |
-          IMAGE_URI_SCRAPER=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_SCRAPER }}
-          docker build -t $IMAGE_URI_SCRAPER -f ${{ env.DOCKERFILE_SCRAPER }} .
-          docker push $IMAGE_URI_SCRAPER
-          echo "IMAGE_URI_SCRAPER=$IMAGE_URI_SCRAPER" >> $GITHUB_ENV
+      - run: |
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_SCRAPER }} -f ${{ env.DOCKERFILE_SCRAPER }} .
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_SCRAPER }}
 
-      - name: Build and push volatilidad Lambda Docker image
-        run: |
-          IMAGE_URI_VOL=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_VOL }}
-          docker build -t $IMAGE_URI_VOL -f ${{ env.DOCKERFILE_VOL }} .
-          docker push $IMAGE_URI_VOL
-          echo "IMAGE_URI_VOL=$IMAGE_URI_VOL" >> $GITHUB_ENV
+      - run: |
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_VOL }} -f ${{ env.DOCKERFILE_VOL }} .
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_VOL }}
 
-      - name: Build and push Dash App Docker image
-        run: |
-          IMAGE_URI_DASH=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_DASH }}
-          docker build -t $IMAGE_URI_DASH -f ${{ env.DOCKERFILE_DASH }} .
-          docker push $IMAGE_URI_DASH
-          echo "IMAGE_URI_DASH=$IMAGE_URI_DASH" >> $GITHUB_ENV
+      - run: |
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_DASH }} -f ${{ env.DOCKERFILE_DASH }} .
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG_DASH }}
 
-      - name: Terraform Apply (all resources: Lambdas + DynamoDB + Step Function + App Runner)
-        working-directory: terraform
-        run: |
+      - run: |
           terraform apply -auto-approve \
             -var="ecr_repo_name=${{ env.ECR_REPOSITORY }}" \
             -var="image_tag_scraper=${{ env.IMAGE_TAG_SCRAPER }}" \
             -var="image_tag_vol=${{ env.IMAGE_TAG_VOL }}" \
             -var="image_tag_dash=${{ env.IMAGE_TAG_DASH }}"
+        working-directory: terraform
