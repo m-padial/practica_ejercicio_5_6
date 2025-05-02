@@ -70,7 +70,7 @@ jobs:
           docker push $IMAGE_URI_DASH
           echo "IMAGE_URI_DASH=$IMAGE_URI_DASH" >> $GITHUB_ENV
 
-      - name: Terraform Apply (all resources)
+      - name: Terraform Apply (all resources: Lambdas + DynamoDB + Step Function + App Runner)
         working-directory: terraform
         run: |
           terraform apply -auto-approve \

@@ -1,6 +1,14 @@
 resource "aws_apprunner_service" "dash_app" {
   service_name = "volatilidad-dash-app"
 
+  depends_on = [
+    aws_lambda_function.scraping_lambda,
+    aws_lambda_function.lambda_volatilidad,
+    aws_dynamodb_table.scraping_data,
+    aws_iam_role.apprunner_ecr_access,
+    aws_iam_role_policy.apprunner_dash_policy
+  ]
+
   source_configuration {
     authentication_configuration {
       access_role_arn = aws_iam_role.apprunner_ecr_access.arn
@@ -8,7 +16,7 @@ resource "aws_apprunner_service" "dash_app" {
 
     image_repository {
       image_configuration {
-        port = "8050" # Puerto por defecto de Dash
+        port = "8050"
       }
       image_identifier      = "${aws_ecr_repository.lambda_repository.repository_url}:dash"
       image_repository_type = "ECR"
@@ -18,8 +26,8 @@ resource "aws_apprunner_service" "dash_app" {
   }
 
   instance_configuration {
-    cpu    = "1024"  # 1 vCPU
-    memory = "2048"  # 2 GB RAM
+    cpu    = "1024"
+    memory = "2048"
   }
 
   tags = {
@@ -28,7 +36,8 @@ resource "aws_apprunner_service" "dash_app" {
   }
 }
 
-# --- IAM Role para App Runner con acceso a ECR y DynamoDB
+
+# --- IAM Role para App Runner (ECR + DynamoDB)
 resource "aws_iam_role" "apprunner_ecr_access" {
   name = "AppRunnerDashAccessRole"
 
@@ -37,14 +46,14 @@ resource "aws_iam_role" "apprunner_ecr_access" {
     Statement = [{
       Effect = "Allow",
       Principal = {
-        Service = "build.apprunner.amazonaws.com"
+        Service = "tasks.apprunner.amazonaws.com"  # ✅ CORREGIDO
       },
       Action = "sts:AssumeRole"
     }]
   })
 }
 
-# --- Permisos combinados: ECR + DynamoDB
+# --- Permisos combinados para ECR + DynamoDB
 resource "aws_iam_role_policy" "apprunner_dash_policy" {
   name = "AppRunnerDashPolicy"
   role = aws_iam_role.apprunner_ecr_access.id
