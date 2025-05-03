@@ -25,15 +25,13 @@ resource "aws_iam_policy" "lambda_policy" {
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
           "dynamodb:GetItem",
-          "dynamodb:Scan"           # ✅ Añade esta línea
-        ],  
+          "dynamodb:Scan"
+        ],
         Resource = aws_dynamodb_table.scraping_data.arn
       },
       {
         Effect = "Allow",
-        Action = [
-          "s3:GetObject"
-        ],
+        Action = ["s3:GetObject"],
         Resource = "${aws_s3_bucket.lambda_bucket.arn}/*"
       },
       {
@@ -58,11 +56,13 @@ resource "aws_lambda_function" "scraping_lambda" {
   function_name = "scraping_opciones_futuros"
   package_type  = "Image"
   image_uri     = "${aws_ecr_repository.lambda_repository.repository_url}:${var.image_tag_scraper}"
+  role          = aws_iam_role.lambda_exec_role.arn
+  timeout       = 120
+  memory_size   = 1536
 
-  role         = aws_iam_role.lambda_exec_role.arn
-
-  timeout      = 120
-  memory_size  = 1536
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_policy_attach
+  ]
 
   environment {
     variables = {
@@ -70,5 +70,4 @@ resource "aws_lambda_function" "scraping_lambda" {
     }
   }
 }
-
 

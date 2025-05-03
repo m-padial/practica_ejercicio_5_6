@@ -81,9 +81,10 @@ resource "null_resource" "run_pipeline" {
         fi
       done
     EOT
-    interpreter = ["/bin/bash", "-c"]
   }
 }
+
+
 
 # --- Servicio App Runner
 resource "aws_apprunner_service" "dash_app" {
