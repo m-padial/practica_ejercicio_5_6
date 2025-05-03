@@ -1,4 +1,4 @@
-# --- Obtener ID de cuenta AWS (para interpolar en ARN de DynamoDB)
+# --- Obtener ID de cuenta AWS
 data "aws_caller_identity" "current" {}
 
 # --- Rol IAM para App Runner con acceso a ECR y DynamoDB
@@ -49,9 +49,51 @@ resource "aws_iam_role_policy" "apprunner_dynamodb_policy" {
   })
 }
 
-# --- Servicio App Runner con Deployment manual
+# --- Ejecutar la Step Function y ESPERAR hasta que termine con éxito
+resource "null_resource" "run_pipeline" {
+  depends_on = [aws_sfn_state_machine.pipeline_scraper_volatilidad]
+
+  provisioner "local-exec" {
+    command = <<EOT
+      EXECUTION_ARN=$(aws stepfunctions start-execution \
+        --state-machine-arn ${aws_sfn_state_machine.pipeline_scraper_volatilidad.arn} \
+        --region eu-west-1 \
+        --output text --query executionArn)
+
+      echo "Step Function Execution ARN: $EXECUTION_ARN"
+
+      while true; do
+        STATUS=$(aws stepfunctions describe-execution \
+          --execution-arn "$EXECUTION_ARN" \
+          --region eu-west-1 \
+          --query status --output text)
+
+        echo "Estado actual: $STATUS"
+
+        if [ "$STATUS" = "SUCCEEDED" ]; then
+          echo "✅ Step Function completada correctamente."
+          break
+        elif [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "TIMED_OUT" ] || [ "$STATUS" = "ABORTED" ]; then
+          echo "❌ Error: Step Function terminó con estado $STATUS"
+          exit 1
+        else
+          sleep 5
+        fi
+      done
+    EOT
+    interpreter = ["/bin/bash", "-c"]
+  }
+}
+
+# --- Servicio App Runner
 resource "aws_apprunner_service" "dash_app" {
   service_name = "volatilidad-dash-app"
+
+  depends_on = [
+    null_resource.run_pipeline,
+    aws_iam_role.apprunner_ecr_role,
+    aws_iam_role_policy.apprunner_dynamodb_policy
+  ]
 
   source_configuration {
     authentication_configuration {
@@ -66,13 +108,13 @@ resource "aws_apprunner_service" "dash_app" {
       image_repository_type = "ECR"
     }
 
-    auto_deployments_enabled = false # 🟠 Despliegue manual (como en consola)
+    auto_deployments_enabled = false
   }
 
   instance_configuration {
-    cpu                = "1024"
-    memory             = "2048"
-    instance_role_arn  = aws_iam_role.apprunner_ecr_role.arn # ✅ Útil si usas más servicios
+    cpu               = "1024"
+    memory            = "2048"
+    instance_role_arn = aws_iam_role.apprunner_ecr_role.arn
   }
 
   tags = {
@@ -80,4 +122,3 @@ resource "aws_apprunner_service" "dash_app" {
     Environment = "dev"
   }
 }
-
