@@ -22,11 +22,12 @@ def cargar_datos_desde_dynamo():
 
     # Convertir tipos
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
-    df["ant"] = pd.to_numeric(df["ant"], errors="coerce")
+    df["precio"] = pd.to_numeric(df["precio"], errors="coerce")
     df["σ"] = pd.to_numeric(df["σ"], errors="coerce")
-    df["FV"] = pd.to_datetime(df["FV"], errors="coerce").dt.date
+    df["vencimiento"] = pd.to_datetime(df["vencimiento"], errors="coerce").dt.date
 
     return df
+
 
 df_resultado = cargar_datos_desde_dynamo()
 
@@ -35,7 +36,7 @@ app = dash.Dash(__name__)
 server = app.server
 app.title = "Skew de Volatilidad - MINI IBEX"
 
-vencimientos = sorted(df_resultado["FV"].dropna().unique())
+vencimientos = sorted(df_resultado["vencimiento"].dropna().unique())
 
 # --- 3. Layout
 app.layout = html.Div(
@@ -107,9 +108,9 @@ app.layout = html.Div(
     Input('vencimiento-dropdown', 'value')
 )
 def update_graph(vencimiento_seleccionado):
-    df_vto = df_resultado[df_resultado['FV'] == vencimiento_seleccionado]
-    df_calls = df_vto[df_vto['put/call'] == 'Call'].dropna(subset=['σ'])
-    df_puts = df_vto[df_vto['put/call'] == 'Put'].dropna(subset=['σ'])
+    df_vto = df_resultado[df_resultado['vencimiento'] == vencimiento_seleccionado]
+    df_calls = df_vto[df_vto['tipo'] == 'Call'].dropna(subset=['σ'])
+    df_puts = df_vto[df_vto['tipo'] == 'Put'].dropna(subset=['σ'])
 
     traces = []
     if not df_calls.empty:
@@ -141,8 +142,8 @@ def update_graph(vencimiento_seleccionado):
     tabla = html.Div([
         dcc.Markdown("#### Datos utilizados"),
         dash_table.DataTable(
-            columns=[{"name": i, "id": i} for i in ['strike', 'put/call', 'ant', 'σ']],
-            data=df_vto[['strike', 'put/call', 'ant', 'σ']].to_dict('records'),
+            columns=[{"name": i, "id": i} for i in ['strike', 'tipo', 'precio', 'σ']],
+            data=df_vto[['strike', 'tipo', 'precio', 'σ']].to_dict('records'),
             style_table={'overflowX': 'auto'},
             style_cell={
                 'textAlign': 'center',
