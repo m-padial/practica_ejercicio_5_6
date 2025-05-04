@@ -31,11 +31,6 @@ resource "aws_iam_policy" "lambda_policy" {
       },
       {
         Effect = "Allow",
-        Action = ["s3:GetObject"],
-        Resource = "${aws_s3_bucket.lambda_bucket.arn}/*"
-      },
-      {
-        Effect = "Allow",
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",
