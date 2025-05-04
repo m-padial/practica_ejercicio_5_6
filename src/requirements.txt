@@ -10,4 +10,4 @@ scipy
 requests
 gunicorn
 boto3
-
+dateutil
