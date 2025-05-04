@@ -20,7 +20,11 @@ def cargar_datos_desde_dynamo():
         response = tabla.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
         data.extend(response["Items"])
 
+    print("🔹 Total de registros descargados de DynamoDB:", len(data))
     df = pd.DataFrame(data)
+    print("🔹 Columnas del DataFrame:", df.columns.tolist())
+    print("🔹 Primeros 3 registros:\n", df.head(3))
+
 
     # Convertir tipos
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
@@ -38,6 +42,7 @@ def cargar_datos_desde_dynamo():
         return None
 
     df["vencimiento"] = df["vencimiento"].apply(normalizar_fecha)
+    print("🔹 Vencimientos únicos normalizados:", df["vencimiento"].dropna().unique())
 
 
     return df
@@ -116,15 +121,29 @@ app.layout = html.Div(
 )
 
 # --- 4. Callback
+# --- 4. Callback
 @app.callback(
     Output('vol-skew-graph', 'figure'),
     Output('data-table', 'children'),
     Input('vencimiento-dropdown', 'value')
 )
 def update_graph(vencimiento_seleccionado):
+    print(f"\n🔸 VENCIMIENTO SELECCIONADO: {vencimiento_seleccionado}")
+    
     df_vto = df_resultado[df_resultado['vencimiento'] == vencimiento_seleccionado]
+    print(f"🔸 Registros encontrados para vencimiento {vencimiento_seleccionado}: {len(df_vto)}")
+    
+    # Mostrar las primeras filas filtradas
+    try:
+        print("🔸 df_vto (primeros 3 registros):\n", df_vto[['strike', 'tipo', 'precio', 'σ']].head(3))
+    except Exception as e:
+        print("⚠️ Error al mostrar df_vto:", e)
+
     df_calls = df_vto[df_vto['tipo'] == 'Call'].dropna(subset=['σ'])
     df_puts = df_vto[df_vto['tipo'] == 'Put'].dropna(subset=['σ'])
+    
+    print("🔹 Calls con σ:", len(df_calls))
+    print("🔹 Puts con σ:", len(df_puts))
 
     traces = []
     if not df_calls.empty:
