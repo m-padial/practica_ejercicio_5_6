@@ -5,6 +5,8 @@ import pandas as pd
 import plotly.graph_objs as go
 import boto3
 import os
+from dateutil import parser
+
 
 # --- 1. Cargar datos desde DynamoDB
 dynamodb = boto3.resource("dynamodb", region_name="eu-west-1")
@@ -24,7 +26,19 @@ def cargar_datos_desde_dynamo():
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
     df["precio"] = pd.to_numeric(df["precio"], errors="coerce")
     df["σ"] = pd.to_numeric(df["σ"], errors="coerce")
-    df["vencimiento"] = pd.to_datetime(df["vencimiento"], errors="coerce").dt.date
+    def normalizar_fecha(fecha):
+        if isinstance(fecha, str):
+            try:
+                return pd.to_datetime(fecha, format="%Y-%m-%d").date()
+            except ValueError:
+                try:
+                    return parser.parse(fecha, dayfirst=True).date()
+                except:
+                    return None
+        return None
+
+    df["vencimiento"] = df["vencimiento"].apply(normalizar_fecha)
+
 
     return df
 
