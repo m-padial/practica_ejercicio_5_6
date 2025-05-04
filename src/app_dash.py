@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 import boto3
 import os
 from dateutil import parser
-
+from decimal import Decimal
 
 # --- 1. Cargar datos desde DynamoDB
 dynamodb = boto3.resource("dynamodb", region_name="eu-west-1")
@@ -20,35 +20,35 @@ def cargar_datos_desde_dynamo():
         response = tabla.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
         data.extend(response["Items"])
 
-    print("🔹 Total de registros descargados de DynamoDB:", len(data))
+    # Filtrar solo opciones (evitar futuros)
+    data = [item for item in data if item.get("tipo_id", "").startswith("opcion#")]
+
+    # Convertir Decimal → float
+    for item in data:
+        for k, v in item.items():
+            if isinstance(v, Decimal):
+                item[k] = float(v)
+
     df = pd.DataFrame(data)
-    print("🔹 Columnas del DataFrame:", df.columns.tolist())
-    print("🔹 Primeros 3 registros:\n", df.head(3))
 
-
-    # Convertir tipos
+    # Convertir tipos numéricos y fechas
     df["strike"] = pd.to_numeric(df["strike"], errors="coerce")
     df["precio"] = pd.to_numeric(df["precio"], errors="coerce")
     df["σ"] = pd.to_numeric(df["σ"], errors="coerce")
+
     def normalizar_fecha(fecha):
-        if isinstance(fecha, str):
-            try:
-                return pd.to_datetime(fecha, format="%Y-%m-%d").date()
-            except ValueError:
-                try:
-                    return parser.parse(fecha, dayfirst=True).date()
-                except:
-                    return None
-        return None
+        try:
+            return pd.to_datetime(fecha).date()
+        except:
+            return None
 
     df["vencimiento"] = df["vencimiento"].apply(normalizar_fecha)
-    print("🔹 Vencimientos únicos normalizados:", df["vencimiento"].dropna().unique())
-
+    df["vencimiento_str"] = df["vencimiento"].astype(str)
 
     return df
 
-
 df_resultado = cargar_datos_desde_dynamo()
+vencimientos = sorted(df_resultado["vencimiento_str"].dropna().unique())
 
 # --- 2. Inicializar Dash
 app = dash.Dash(__name__)
@@ -121,29 +121,15 @@ app.layout = html.Div(
 )
 
 # --- 4. Callback
-# --- 4. Callback
 @app.callback(
     Output('vol-skew-graph', 'figure'),
     Output('data-table', 'children'),
     Input('vencimiento-dropdown', 'value')
 )
 def update_graph(vencimiento_seleccionado):
-    print(f"\n🔸 VENCIMIENTO SELECCIONADO: {vencimiento_seleccionado}")
-    
-    df_vto = df_resultado[df_resultado['vencimiento'] == vencimiento_seleccionado]
-    print(f"🔸 Registros encontrados para vencimiento {vencimiento_seleccionado}: {len(df_vto)}")
-    
-    # Mostrar las primeras filas filtradas
-    try:
-        print("🔸 df_vto (primeros 3 registros):\n", df_vto[['strike', 'tipo', 'precio', 'σ']].head(3))
-    except Exception as e:
-        print("⚠️ Error al mostrar df_vto:", e)
-
+    df_vto = df_resultado[df_resultado['vencimiento_str'] == vencimiento_seleccionado]
     df_calls = df_vto[df_vto['tipo'] == 'Call'].dropna(subset=['σ'])
     df_puts = df_vto[df_vto['tipo'] == 'Put'].dropna(subset=['σ'])
-    
-    print("🔹 Calls con σ:", len(df_calls))
-    print("🔹 Puts con σ:", len(df_puts))
 
     traces = []
     if not df_calls.empty:
@@ -200,6 +186,6 @@ def update_graph(vencimiento_seleccionado):
 
     return figure, tabla
 
-
+# --- 5. Run the server
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0', port=8050, debug=False)
